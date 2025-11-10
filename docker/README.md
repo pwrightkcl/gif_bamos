@@ -1,4 +1,4 @@
-# RISAPS docker image
+# GIF & BaMoS docker image
 
 ## Base image
 The base image is Ubuntu 22.04 LTS.

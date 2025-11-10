@@ -23,8 +23,8 @@ environment if you are working without Docker.
   * Also registers ICBM tissue priors to the subject space.
   * Results are copied by BaMoS and used in various steps.
 * [BaMoS](BaMoS.md)
-  * `BaMoS_RISAPS.sh` generates a run script for each subject.
-    * A great many outputs and working files are saved and I do not know what they all do.
+  * `BaMoS.sh` generates a run script for each subject.
+    * A great many outputs and working files are saved and I do not know all of them do.
   * `correction_lesions.py`
     * Removes detected WMH lesions that are deemed to be improbable.
     * Produces `CorrectLesion_<subject>.nii.gz`
