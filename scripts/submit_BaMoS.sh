@@ -5,10 +5,9 @@ input_dir=/nfs/project/RISAPS/rawdata
 for subject_path in "$input_dir"/sub*
 do
   subject=$(basename "$subject_path")
-  subject=${subject,,}  # Convert to lowercase
-  image_dir="$subject_path"/ses-0/anat
-  input_T1s=("$image_dir"/*t1.nii)
-  input_FLAIRs=("$image_dir"/*flair.nii)
+  image_dir="$subject_path"/ses-v3/anat
+  input_T1s=("$image_dir"/*T1.nii.gz)
+  input_FLAIRs=("$image_dir"/*FLAIR.nii.gz)
   if [ ${#input_T1s[@]} -eq 1 ] && [ ${#input_FLAIRs[@]} -eq 1 ]
   then
     input_T1=${input_T1s[0]}
@@ -30,8 +29,8 @@ do
     fi
   else
     echo "Multiple possible input images for $subject. Please figure out which one to use."
-    echo "*t1.nii: ${#input_T1s[@]} file(s)."
-    echo "*flair.nii: ${#input_FLAIRs[@]} file(s)."
+    echo "*T1.nii.gz: ${#input_T1s[@]} file(s)."
+    echo "*FLAIR.nii.gz: ${#input_FLAIRs[@]} file(s)."
   fi
   echo ""
 done

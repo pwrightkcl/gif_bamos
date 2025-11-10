@@ -42,7 +42,6 @@ echo "Running BaMoS."
 tic_bam=$SECONDS
 date > "$BaMoS_log"
 stdbuf -oL "$script_path"/BaMoS.sh "$id" "$input_FLAIR" "$input_T1" "$GIF_results_path" "$BaMoS_results_path" >> "$BaMoS_log" 2>&1
-echo "BaMoS was already run."
 toc_bam=$SECONDS
 echo "BaMoS complete."
 
@@ -53,17 +52,15 @@ lesion="$BaMoS_results_path"/Correct_WS3WT3WC1Lesion_${id}_corr.nii.gz
 connect="$BaMoS_results_path"/Connect_WS3WT3WC1Lesion_${id}_corr.nii.gz
 label="$BaMoS_results_path"/TxtLesion_WS3WT3WC1Lesion_${id}_corr.txt
 parc="$BaMoS_results_path"/GIF_Parcellation_${id}.nii.gz
-
 echo "Lesion correction."
 {
   echo ""
   date
   echo "correction_lesions.py"
-  python3 -u "$script_path"/correction_lesions.py -les "$lesion" -connect "$connect" -label "$label" -parc "$parc"\
+  python3 "$script_path"/correction_lesions.py -les "$lesion" -connect "$connect" -label "$label" -parc "$parc"\
                                                -corr choroid cortex sheet -id "$id"
 } >> "$BaMoS_log" 2>&1
 lesion_corrected="$BaMoS_results_path"/CorrectLesion_${id}.nii.gz
-
 echo "La Place lobes."
 laplace_dir="${BaMoS_results_path}"/Laplace
 mkdir -p "$laplace_dir"

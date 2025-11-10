@@ -82,7 +82,7 @@ echo "Lesion correction."
   echo ""
   date
   echo "correction_lesions.py"
-  python3 -u "$script_path"/correction_lesions.py -les "$lesion" -connect "$connect" -label "$label" -parc "$parc"\
+  python3 "$script_path"/correction_lesions.py -les "$lesion" -connect "$connect" -label "$label" -parc "$parc"\
                                                -corr choroid cortex sheet -id "$id"
 } >> "$BaMoS_log" 2>&1
 lesion_corrected="$BaMoS_results_path"/CorrectLesion_${id}.nii.gz

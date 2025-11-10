@@ -5,8 +5,8 @@ input_dir=/nfs/project/RISAPS/rawdata
 for subject_path in "$input_dir"/sub*
 do
   subject=$(basename "$subject_path")
-  subject=${subject,,}  # Convert to lowercase
-  image_dir="$subject_path"/ses-0/anat
+  subject=${subject,,}
+  image_dir="$subject_path"/ses-24/anat
   input_T1s=("$image_dir"/*t1.nii)
   input_FLAIRs=("$image_dir"/*flair.nii)
   if [ ${#input_T1s[@]} -eq 1 ] && [ ${#input_FLAIRs[@]} -eq 1 ]
@@ -21,7 +21,8 @@ do
         --run-as-user \
         --backoff-limit 0 \
         --gpu 0 \
-        --cpu-limit 8 \
+        --cpu-limit 4 \
+        --memory-limit 32G \
         --large-shm \
         --command -- \
           /nfs/project/RISAPS/code/scripts/run_GIF_BaMoS.sh "$input_T1" "$input_FLAIR" "$subject"
@@ -30,8 +31,8 @@ do
     fi
   else
     echo "Multiple possible input images for $subject. Please figure out which one to use."
-    echo "*T1.nii.gz: ${#input_T1s[@]} file(s)."
-    echo "*FLAIR.nii.gz: ${#input_FLAIRs[@]} file(s)."
+    echo "*t1.nii: ${#input_T1s[@]} file(s)."
+    echo "*flair.nii: ${#input_FLAIRs[@]} file(s)."
   fi
   echo ""
 done

@@ -8,6 +8,7 @@ load batlowS
 transparency = 0.4;
 
 root_dir = '/nfs/project/RISAPS/derivatives/BaMoS';
+mask_root = '/nfs/project/RISAPS/derivatives/lesion_masks';
 out_dir = fullfile(root_dir, 'check');
 if ~isfolder(out_dir)
     mkdir(out_dir)
@@ -42,39 +43,45 @@ for sub = 1:nsub
         if ~isfolder(laplace_path)
             fprintf('Skipping nonexistent Laplace folder: %s\n', laplace_path)
             continue
-        end            
-
+        end
+        
+        if strcmp(session_dir, 'ses-0')
+            mask_file = fullfile(mask_root, subject_dir, session_dir, 'anat', ...
+                [subject_dir, '_', session_dir, '_space-t1_label-lesion_mask.nii.gz']);
+        elseif strcmp(session_dir, 'ses-24')
+            mask_file = fullfile(mask_root, subject_dir, session_dir, 'anat', ...
+                [subject_dir, '_ses-0_space-m24t1_label-lesion_mask.nii.gz']);
+        else
+            error('Unrecognized session: %s\n', session_dir)
+        end
+        
         img = struct( ...
-            't1',      fullfile(session_path, sprintf('T1_%s.nii.gz', subject_dir)), ...
-            'flair',   fullfile(session_path, sprintf('FLAIR_%s.nii.gz', subject_dir)), ...
-            'layers',  fullfile(laplace_path, sprintf('Layers_%s.nii.gz', subject_dir)), ...
-            'lobes',   fullfile(laplace_path, sprintf('Lobes_%s.nii.gz', subject_dir)), ...
-            'lesions', fullfile(session_path, sprintf('CorrectLesion_%s.nii.gz', subject_dir)), ...
-            'seg',     fullfile(laplace_path, sprintf('%s_Seg1.nii.gz', subject_dir)) ...
-        );
+            't1',          fullfile(session_path, sprintf('T1_%s.nii.gz', subject_dir)), ...
+            'flair',       fullfile(session_path, sprintf('FLAIR_%s.nii.gz', subject_dir)), ...
+            'layers',      fullfile(laplace_path, sprintf('Layers_%s.nii.gz', subject_dir)), ...
+            'lobes',       fullfile(laplace_path, sprintf('Lobes_%s.nii.gz', subject_dir)), ...
+            'lesions',     fullfile(session_path, sprintf('CorrectLesion_%s.nii.gz', subject_dir)), ...
+            'seg',         fullfile(laplace_path, sprintf('%s_Seg1.nii.gz', subject_dir)), ...
+            'lesion_mask', mask_file ...
+            );
         
         fields_to_check = fieldnames(img);
         all_files_exist = true;
         for f = 1:length(fields_to_check)
             field_to_check = fields_to_check{f};
             file_to_check = img.(field_to_check);
-            if ~isfile(file_to_check)
-                fprintf('No %s image.\n', field_to_check)
-                all_files_exist = false;
+            if strcmp(field_to_check, 'lesion_mask')
+                masked = isfile(file_to_check);
+            else
+                if ~isfile(file_to_check)
+                    fprintf('No %s image.\n', field_to_check)
+                    all_files_exist = false;
+                end
             end
         end
         if ~all_files_exist
             disp('One or more image is missing. Skipping this session.')
             continue
-        end
-        
-        temp_dir = tempname;
-        mkdir(temp_dir)
-        disp('gunzipping images to temporary directory')
-        for f = 1:length(fields_to_check)
-            field_to_check = fields_to_check{f};
-            temp_image = gunzip(img.(field_to_check), temp_dir);
-            img.(field_to_check) = temp_image{1};
         end
         
         print_prefix = fullfile(out_dir, sprintf('%04d_%s_%s_', ...
@@ -86,203 +93,251 @@ for sub = 1:nsub
             [print_prefix, '4_lesions.png'], ...
             [print_prefix, '5_layers.png'], ...
             [print_prefix, '6_lobes.png'], ...
+            [print_prefix, '7_lesion_mask.png'], ...
             };
         
         print_file_exists = false(length(print_files), 1);
         for f = 1:length(print_files)
-            if isfile(print_files{f})
+            if isfile(spm_file(print_files{f}, 'suffix', '_001'))
                 print_file_exists(f) = true;
             end
         end
-        if ~all(print_file_exists)
-            
-            
-            %% T1
-            so = slover;
-            so.cbar = [];
-            so.img(1).vol   = spm_vol(img.t1);
-            so.img(1).type  = 'truecolour';
-            so.img(1).cmap  = gray;
-            [mx, mn] = slover('volmaxmin', so.img(1).vol);
-            so.img(1).range = [0 mx*0.99];
-            
-            % Work out slices
-            M   = so.img(1).vol.mat;
-            vx  = sqrt(sum(M(1:3,1:3).^2));
-            dim = so.img(1).vol.dim;
-            ends = [0 dim(3)];
-            ends = ends .* vx(3);
-            ends = ends - mean(ends);
-            slices = linspace(ends(1), ends(2), 25);
-            slices = slices(1:end-1) + diff(slices)./2;
+        if ~masked
+            % Don't mask output if there's no input
+            print_file_exists(7) = true;
+        end
+        
+        if all(print_file_exists)
+            disp('All print files exist. Skipping.')
+            continue
+        end
 
-            % Reset orientation
-            if det(M(1:3,1:3))<0
-                vx(1) = -vx(1);
+        temp_dir = tempname;
+        mkdir(temp_dir)
+        disp('gunzipping images to temporary directory')
+        for f = 1:length(fields_to_check)
+            field_to_check = fields_to_check{f};
+            if strcmp(field_to_check, 'lesion_mask') && ~masked
+                continue
             end
-            orig = (dim(1:3)+1)/2;
-            off  = -vx.*orig;
-            M1   = [vx(1) 0      0         off(1)
-                0      vx(2) 0      off(2)
-                0      0      vx(3) off(3)
-                0      0      0      1];
-            so.img(1).vol.mat = M1;
-            
-            so.img(1).prop  = 1;
-            so.transform    = orientation;
-            so.slices       = slices;
-            so.figure       = spm_figure('GetWin', 'Graphics');
-            paint(so);
-            
-            if ~isfile(spm_file(print_files{1}, 'suffix', '_001'))
-                header = sprintf('T1: %s\nDate: %s\n', ...
-                    spm_file(img.t1, 'filename'), ...
-                    datestr(now,0));
-                ann1=annotation('textbox',[0 .94 1 .06],'Color','r','String',header,...
-                    'EdgeColor','none', 'Interpreter', 'none');
-                spm_print(print_files{1}, 'Graphics', 'png');
-                delete(ann1);
-            end
+            temp_image = gunzip(img.(field_to_check), temp_dir);
+            img.(field_to_check) = temp_image{1};
+        end
+        
 
-            
-            %% GIF segmentation
-            so.img(1).prop  = 1-transparency;
-            
-            so.img(2).vol     = spm_vol(img.seg);
+        
+        %% T1
+        so = slover;
+        so.cbar = [];
+        so.img(1).vol   = spm_vol(img.t1);
+        so.img(1).type  = 'truecolour';
+        so.img(1).cmap  = gray;
+        [mx, mn] = slover('volmaxmin', so.img(1).vol);
+        so.img(1).range = [0 mx*0.99];
+        
+        % Work out slices
+        M   = so.img(1).vol.mat;
+        vx  = sqrt(sum(M(1:3,1:3).^2));
+        dim = so.img(1).vol.dim;
+        ends = [0 dim(3)];
+        ends = ends .* vx(3);
+        ends = ends - mean(ends);
+        slices = linspace(ends(1), ends(2), 25);
+        slices = slices(1:end-1) + diff(slices)./2;
+        
+        % Reset orientation
+        if det(M(1:3,1:3))<0
+            vx(1) = -vx(1);
+        end
+        orig = (dim(1:3)+1)/2;
+        off  = -vx.*orig;
+        M1   = [vx(1) 0      0         off(1)
+            0      vx(2) 0      off(2)
+            0      0      vx(3) off(3)
+            0      0      0      1];
+        so.img(1).vol.mat = M1;
+        
+        so.img(1).prop  = 1;
+        so.transform    = orientation;
+        so.slices       = slices;
+        so.figure       = spm_figure('GetWin', 'Graphics');
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{1}, 'suffix', '_001'))
+            header = sprintf('T1: %s\nDate: %s\n', ...
+                spm_file(img.t1, 'filename'), ...
+                datestr(now,0));
+            ann1=annotation('textbox',[0 .94 1 .06],'Color','r','String',header,...
+                'EdgeColor','none', 'Interpreter', 'none');
+            spm_print(print_files{1}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% GIF segmentation
+        so.img(1).prop  = 1-transparency;
+        
+        so.img(2).vol     = spm_vol(img.seg);
+        so.img(2).vol.mat = M1;
+        so.img(2).type    = 'truecolour';
+        so.img(2).cmap    = [0 0 0 ; batlowS(1:8,:)];
+        so.img(2).range   = [0 8];
+        so.img(2).prop    = transparency;
+        
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{2}, 'suffix', '_001'))
+            header = sprintf('T1: %s\nSeg: %s\nDate: %s\n', ...
+                spm_file(img.t1, 'filename'), ...
+                spm_file(img.seg, 'filename'), ...
+                datestr(now, 0));
+            ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
+                'EdgeColor', 'none', 'Interpreter', 'none');
+            spm_print(print_files{2}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% FLAIR
+        so = slover;
+        so.cbar = [];
+        so.img(1).vol   = spm_vol(img.flair);
+        so.img(1).type  = 'truecolour';
+        so.img(1).cmap  = gray;
+        [mx, mn] = slover('volmaxmin', so.img(1).vol);
+        so.img(1).range = [0 mx*0.99];
+        
+        % Work out slices
+        M   = so.img(1).vol.mat;
+        vx  = sqrt(sum(M(1:3,1:3).^2));
+        dim = so.img(1).vol.dim;
+        ends = [0 dim(3)];
+        ends = ends .* vx(3);
+        ends = ends - mean(ends);
+        slices = linspace(ends(1), ends(2), 25);
+        slices = slices(1:end-1) + diff(slices)./2;
+        
+        % Reset orientation
+        if det(M(1:3,1:3))<0
+            vx(1) = -vx(1);
+        end
+        orig = (dim(1:3)+1)/2;
+        off  = -vx.*orig;
+        M1   = [vx(1) 0      0         off(1)
+            0      vx(2) 0      off(2)
+            0      0      vx(3) off(3)
+            0      0      0      1];
+        so.img(1).vol.mat = M1;
+        
+        so.img(1).prop  = 1;
+        so.transform    = orientation;
+        so.slices       = slices;
+        so.figure       = spm_figure('GetWin', 'Graphics');
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{3}, 'suffix', '_001'))
+            header = sprintf('FLAIR: %s\nDate: %s\n', ...
+                spm_file(img.flair, 'filename'), ...
+                datestr(now,0));
+            ann1=annotation('textbox',[0 .94 1 .06],'Color','r','String',header,...
+                'EdgeColor','none', 'Interpreter', 'none');
+            spm_print(print_files{3}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% BaMoS lesions
+        so.img(2).vol     = spm_vol(img.lesions);
+        so.img(2).vol.mat = M1;
+        so.img(2).type    = 'truecolour';
+        so.img(2).cmap    = mask_col;
+        so.img(2).range   = [0 1];
+        so.img(2).prop    = transparency;
+        
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{4}, 'suffix', '_001'))
+            header = sprintf('FLAIR: %s\nLesions: %s\nDate: %s\n', ...
+                spm_file(img.flair, 'filename'), ...
+                spm_file(img.lesions, 'filename'), ...
+                datestr(now, 0));
+            ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
+                'EdgeColor', 'none', 'Interpreter', 'none');
+            spm_print(print_files{4}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% BaMoS layers
+        so.img(2).vol     = spm_vol(img.layers);
+        so.img(2).vol.mat = M1;
+        so.img(2).type    = 'truecolour';
+        so.img(2).cmap    = [0 0 0 ; batlowS(1:4,:)];
+        so.img(2).range   = [0 4];
+        so.img(2).prop    = transparency;
+        
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{5}, 'suffix', '_001'))
+            header = sprintf('FLAIR: %s\nLayers: %s\nDate: %s\n', ...
+                spm_file(img.flair, 'filename'), ...
+                spm_file(img.layers, 'filename'), ...
+                datestr(now, 0));
+            ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
+                'EdgeColor', 'none', 'Interpreter', 'none');
+            spm_print(print_files{5}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% BaMoS lobes
+        so.img(2).vol     = spm_vol(img.lobes);
+        so.img(2).vol.mat = M1;
+        so.img(2).type    = 'truecolour';
+        so.img(2).cmap    = [0 0 0 ; batlowS(1:10,:)];
+        [mx, mn] = slover('volmaxmin', so.img(2).vol);
+        so.img(2).range   = [0 mx];
+        so.img(2).prop    = transparency;
+        
+        paint(so);
+        
+        if ~isfile(spm_file(print_files{6}, 'suffix', '_001'))
+            header = sprintf('FLAIR: %s\nLobes: %s\nDate: %s\n', ...
+                spm_file(img.flair, 'filename'), ...
+                spm_file(img.lobes, 'filename'), ...
+                datestr(now, 0));
+            ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
+                'EdgeColor', 'none', 'Interpreter', 'none');
+            spm_print(print_files{6}, 'Graphics', 'png');
+            delete(ann1);
+        end
+        
+        
+        %% Lesion mask
+        if masked
+            so.img(2).vol     = spm_vol(img.lesion_mask);
             so.img(2).vol.mat = M1;
             so.img(2).type    = 'truecolour';
-            so.img(2).cmap    = [0 0 0 ; batlowS(1:8,:)];
-            so.img(2).range   = [0 8];
-            so.img(2).prop    = transparency;
-            
-            paint(so);
-            
-            if ~isfile(spm_file(print_files{2}, 'suffix', '_001'))
-                header = sprintf('T1: %s\nSeg: %s\nDate: %s\n', ...
-                    spm_file(img.t1, 'filename'), ...
-                    spm_file(img.seg, 'filename'), ...
-                    datestr(now, 0));
-                ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
-                    'EdgeColor', 'none', 'Interpreter', 'none');
-                spm_print(print_files{2}, 'Graphics', 'png');
-                delete(ann1);
-            end
-            
-
-            %% FLAIR
-            so = slover;
-            so.cbar = [];
-            so.img(1).vol   = spm_vol(img.flair);
-            so.img(1).type  = 'truecolour';
-            so.img(1).cmap  = gray;
-            [mx, mn] = slover('volmaxmin', so.img(1).vol);
-            so.img(1).range = [0 mx*0.99];
-            
-            % Work out slices
-            M   = so.img(1).vol.mat;
-            vx  = sqrt(sum(M(1:3,1:3).^2));
-            dim = so.img(1).vol.dim;
-            ends = [0 dim(3)];
-            ends = ends .* vx(3);
-            ends = ends - mean(ends);
-            slices = linspace(ends(1), ends(2), 25);
-            slices = slices(1:end-1) + diff(slices)./2;
-
-            % Reset orientation
-            if det(M(1:3,1:3))<0
-                vx(1) = -vx(1);
-            end
-            orig = (dim(1:3)+1)/2;
-            off  = -vx.*orig;
-            M1   = [vx(1) 0      0         off(1)
-                0      vx(2) 0      off(2)
-                0      0      vx(3) off(3)
-                0      0      0      1];
-            so.img(1).vol.mat = M1;
-            
-            so.img(1).prop  = 1;
-            so.transform    = orientation;
-            so.slices       = slices;
-            so.figure       = spm_figure('GetWin', 'Graphics');
-            paint(so);
-            
-            if ~isfile(spm_file(print_files{3}, 'suffix', '_001'))
-                header = sprintf('FLAIR: %s\nDate: %s\n', ...
-                    spm_file(img.flair, 'filename'), ...
-                    datestr(now,0));
-                ann1=annotation('textbox',[0 .94 1 .06],'Color','r','String',header,...
-                    'EdgeColor','none', 'Interpreter', 'none');
-                spm_print(print_files{3}, 'Graphics', 'png');
-                delete(ann1);
-            end
-
-
-            %% BaMoS lesions
-            so.img(2).vol     = spm_vol(img.lesions);
-            so.img(2).vol.mat = M1;
-            so.img(2).type    = 'truecolour';
-            so.img(2).cmap    = mask_col;
+%             [mx, mn] = slover('volmaxmin', so.img(2).vol);
             so.img(2).range   = [0 1];
+            so.img(2).cmap    = mask_col;
             so.img(2).prop    = transparency;
             
             paint(so);
             
-            if ~isfile(spm_file(print_files{4}, 'suffix', '_001'))
-                header = sprintf('FLAIR: %s\nLesions: %s\nDate: %s\n', ...
+            if ~isfile(spm_file(print_files{7}, 'suffix', '_001'))
+                header = sprintf('FLAIR: %s\nLesion mask: %s\nDate: %s\n', ...
                     spm_file(img.flair, 'filename'), ...
-                    spm_file(img.lesions, 'filename'), ...
+                    spm_file(img.lesion_mask, 'filename'), ...
                     datestr(now, 0));
                 ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
                     'EdgeColor', 'none', 'Interpreter', 'none');
-                spm_print(print_files{4}, 'Graphics', 'png');
-                delete(ann1);
-            end
-
-            
-            %% BaMoS layers
-            so.img(2).vol     = spm_vol(img.layers);
-            so.img(2).vol.mat = M1;
-            so.img(2).type    = 'truecolour';
-            so.img(2).cmap    = [0 0 0 ; batlowS(1:4,:)];
-            so.img(2).range   = [0 4];
-            so.img(2).prop    = transparency;
-            
-            paint(so);
-            
-            if ~isfile(spm_file(print_files{5}, 'suffix', '_001'))
-                header = sprintf('FLAIR: %s\nLayers: %s\nDate: %s\n', ...
-                    spm_file(img.flair, 'filename'), ...
-                    spm_file(img.layers, 'filename'), ...
-                    datestr(now, 0));
-                ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
-                    'EdgeColor', 'none', 'Interpreter', 'none');
-                spm_print(print_files{5}, 'Graphics', 'png');
-                delete(ann1);
-            end
-            
-
-            %% BaMoS lobes
-            so.img(2).vol     = spm_vol(img.lobes);
-            so.img(2).vol.mat = M1;
-            so.img(2).type    = 'truecolour';
-            so.img(2).cmap    = [0 0 0 ; batlowS(1:10,:)];
-            [mx, mn] = slover('volmaxmin', so.img(2).vol);
-            so.img(2).range   = [0 mx];
-            so.img(2).prop    = transparency;
-            
-            paint(so);
-            
-            if ~isfile(spm_file(print_files{6}, 'suffix', '_001'))
-                header = sprintf('FLAIR: %s\nLobes: %s\nDate: %s\n', ...
-                    spm_file(img.flair, 'filename'), ...
-                    spm_file(img.lobes, 'filename'), ...
-                    datestr(now, 0));
-                ann1=annotation('textbox', [0 .94 1 .06], 'Color', 'r', 'String', header, ...
-                    'EdgeColor', 'none', 'Interpreter', 'none');
-                spm_print(print_files{6}, 'Graphics', 'png');
+                spm_print(print_files{7}, 'Graphics', 'png');
                 delete(ann1);
             end
         end
+        
+        
     end%ses
 end%sub
 disp(' ')
