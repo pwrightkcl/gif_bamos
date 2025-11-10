@@ -64,6 +64,14 @@ You will also need to install `bc`, the linux basic calculator.
 
 The BaMoS Github also contains a collection of shell and python scripts.
 
+### Reference images
+
+BaMoS uses ICBM template images. These probably came originally from [UCLA BMAP](http://www.bmap.ucla.edu/portfolio/atlases) 
+or [LONI](https://www.loni.usc.edu/research/atlas_downloads). This repo includes [ICBM_priors](../ICBM_priors) used 
+with BaMoS since they have are slightly different to the ones online (image dimensions, cropping, division of tissue 
+classes). Install [git lfs](https://git-lfs.com/) in your local clone to make sure these large files are handled 
+correctly.
+
 ## Running BaMoS
 
 The BaMoS repo contains several shell scripts with prefix `BaMoS_`. These create run scripts for each subject that run 
