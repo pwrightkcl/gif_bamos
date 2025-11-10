@@ -65,7 +65,7 @@ make
 make install
 ```
 
-## GID database
+## GIF database
 
 GIF works by comparing the input image to a library of images with manually segmented structures. You need to specify 
 the path to this database when running GIF.
