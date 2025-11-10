@@ -1,0 +1,6 @@
+# These are the minimum lines required to run. They will also grab dependencies like numpy.
+nibabel==5.0.1
+pandas==1.5.3
+scipy==1.10.1
+Pillow==9.5.0
+matplotlib==3.7.1
