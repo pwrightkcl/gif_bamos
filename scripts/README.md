@@ -50,4 +50,4 @@ environment if you are working without Docker.
 
 The BaMoS scripts were adapted from here: https://github.com/csudre/BaMoS
 
-For details of the versions of the source code compiled in the Docker image, see [docker/README.md](docker/README.md).
+For details of the versions of the source code compiled in the Docker image, see [docker](../docker).
