@@ -16,6 +16,6 @@ To run this code on the KCL BMEIS cluster, run the relevant `submit` script (for
 submit one job to the cluster per subject and run the corresponding `run` script. The `run` script parses the input 
 filenames, creates output directories, and keeps track of the timing of the GIF and BaMoS steps.
 
-To create a RISAPS Docker image to run this code on the KCL BMEIS cluster, see [docker](docker).
+To create a Docker image to run this code on the KCL BMEIS cluster, see [docker](docker).
 
 For details of the GIF and BaMoS scripts, see [scripts](scripts).
